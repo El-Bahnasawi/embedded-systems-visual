@@ -31,7 +31,7 @@ def fetch_data():
         df["time"] = pd.to_numeric(df["time"], errors="coerce").fillna(0).astype(int)
         # Sort and take the most recent records
         df.sort_values("time", inplace=True)
-        df = df.tail(MAX_DISPLAY_RECORDS)
+        df = df.head(MAX_DISPLAY_RECORDS)
         # Convert ms to HH:MM:SS string
         df["time_str"] = df["time"].apply(
             lambda ms: f"{int(ms//3600000):02d}:{int((ms%3600000)//60000):02d}:{int((ms%60000)//1000):02d}"
