@@ -1,7 +1,3 @@
-"""
-Streamlit dashboard for real-time visualization of sensor readings from Firebase,
-with elapsed-time counter in HH:MM:SS format.
-"""
 import requests
 import pandas as pd
 import streamlit as st
@@ -31,12 +27,15 @@ def fetch_data():
     data = resp.json() or {}
     df = pd.DataFrame.from_dict(data, orient="index")
     if not df.empty:
-        # Ensure numeric time (ms), convert to timedelta and formatted string
-        df["time"] = pd.to_numeric(df["time"], downcast="integer")
-        df["elapsed"] = pd.to_timedelta(df["time"], unit="ms")
-        df["time_str"] = df["elapsed"].apply(lambda td: str(td).split(".")[0])
+        # Ensure numeric time in ms
+        df["time"] = pd.to_numeric(df["time"], errors="coerce").fillna(0).astype(int)
+        # Sort and take the most recent records
         df.sort_values("time", inplace=True)
         df = df.tail(MAX_DISPLAY_RECORDS)
+        # Convert ms to HH:MM:SS string
+        df["time_str"] = df["time"].apply(
+            lambda ms: f"{int(ms//3600000):02d}:{int((ms%3600000)//60000):02d}:{int((ms%60000)//1000):02d}"
+        )
     return df
 
 # ─── Load Data ─────────────────────────────────────────────────────────────
@@ -56,7 +55,7 @@ else:
         fig.add_trace(go.Scatter(
             x=df["time_str"],
             y=df[field],
-            mode='lines',
+            mode='lines+markers',
             line=dict(color=color),
             name=label,
             hovertemplate='Time: %{x}<br>' + f'{label}: %{{y}}<extra></extra>'
