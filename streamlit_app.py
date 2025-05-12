@@ -68,7 +68,7 @@ else:
             annotation_position="top right",
             annotation_font=dict(color=color, size=12)
         )
-        # Layout updates with rotated x-labels
+        # Layout updates
         fig.update_layout(
             title=label,
             xaxis_title='Elapsed Time (HH:MM:SS)',
@@ -77,8 +77,6 @@ else:
             margin=dict(l=20, r=20, t=40, b=20),
             hovermode='x unified'
         )
-        # Rotate x-axis tick labels by 45 degrees for readability
-        fig.update_xaxes(tickangle=45)
         return fig
 
     # Render charts in columns
