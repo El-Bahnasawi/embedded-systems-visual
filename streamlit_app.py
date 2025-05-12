@@ -1,7 +1,7 @@
 """
 Streamlit dashboard for real-time visualization of sensor readings from Firebase,
 using streamlit-autorefresh for synchronized updates and clear threshold labels.
-Now with Plotly charts.
+Now with Plotly charts and limited to showing only the 10 most recent readings.
 """
 import requests
 import pandas as pd
@@ -16,6 +16,7 @@ READ_URL       = f"{DB_URL}/readings.json"
 TEMP_THRESHOLD = 30
 HUM_THRESHOLD  = 75
 LDR_THRESHOLD  = 10
+MAX_DISPLAY_RECORDS = 15  # Only show this many most recent readings
 
 # ─── Page Setup ────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Env Monitor", layout="wide")
@@ -33,14 +34,17 @@ def fetch_data():
     if not df.empty:
         df["datetime"] = pd.to_datetime(df["datetime"])
         df.sort_values("datetime", inplace=True)
+        # Keep only the most recent records
+        df = df.tail(MAX_DISPLAY_RECORDS)
     return df
 
 # ─── Load Data ─────────────────────────────────────────────────────────────
 df = fetch_data()
 if df.empty:
-    st.warning("No data available. Is pusher_admin.py running?")
+    st.warning("No data available. Check if your sensor is connected?")
 else:
     latest_time = df["datetime"].max()
+    st.caption(f"Showing {len(df)} most recent readings (of {MAX_DISPLAY_RECORDS} max)")
 
     def build_chart(field, label, threshold, color):
         fig = go.Figure()
@@ -86,7 +90,7 @@ else:
     cols[1].plotly_chart(hum_chart,  use_container_width=True)
     cols[2].plotly_chart(ldr_chart,  use_container_width=True)
 
-    # Alerts Section
+    # Alerts Section (only checks latest reading)
     st.markdown("---")
     st.subheader("⚠️ Alerts")
     latest = df.iloc[-1]
