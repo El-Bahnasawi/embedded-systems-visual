@@ -1,7 +1,6 @@
 """
 Streamlit dashboard for real-time visualization of sensor readings from Firebase,
-using streamlit-autorefresh for synchronized updates and clear threshold labels.
-Now with Plotly charts and limited to showing only the 10 most recent readings.
+with elapsed-time counter in HH:MM:SS format.
 """
 import requests
 import pandas as pd
@@ -11,11 +10,11 @@ from streamlit_autorefresh import st_autorefresh
 from datetime import datetime, timezone
 
 # ─── Configuration ─────────────────────────────────────────────────────────
-DB_URL         = "https://embedded-systems-project-dbf9b-default-rtdb.europe-west1.firebasedatabase.app"
-READ_URL       = f"{DB_URL}/readings.json"
-TEMP_THRESHOLD = 30
-HUM_THRESHOLD  = 75
-LDR_THRESHOLD  = 10
+DB_URL              = "https://embedded-systems-project-dbf9b-default-rtdb.europe-west1.firebasedatabase.app"
+READ_URL            = f"{DB_URL}/readings.json"
+TEMP_THRESHOLD      = 30
+HUM_THRESHOLD       = 75
+LDR_THRESHOLD       = 10
 MAX_DISPLAY_RECORDS = 15  # Only show this many most recent readings
 
 # ─── Page Setup ────────────────────────────────────────────────────────────
@@ -32,9 +31,11 @@ def fetch_data():
     data = resp.json() or {}
     df = pd.DataFrame.from_dict(data, orient="index")
     if not df.empty:
-        df["datetime"] = pd.to_datetime(df["datetime"])
-        df.sort_values("datetime", inplace=True)
-        # Keep only the most recent records
+        # Ensure numeric time (ms), convert to timedelta and formatted string
+        df["time"] = pd.to_numeric(df["time"], downcast="integer")
+        df["elapsed"] = pd.to_timedelta(df["time"], unit="ms")
+        df["time_str"] = df["elapsed"].apply(lambda td: str(td).split(".")[0])
+        df.sort_values("time", inplace=True)
         df = df.tail(MAX_DISPLAY_RECORDS)
     return df
 
@@ -43,23 +44,24 @@ df = fetch_data()
 if df.empty:
     st.warning("No data available. Check if your sensor is connected?")
 else:
-    latest_time = df["datetime"].max()
-    st.caption(f"Showing {len(df)} most recent readings (of {MAX_DISPLAY_RECORDS} max)")
+    # Caption and last reading time
+    st.caption(
+        f"Showing {len(df)} most recent readings (of {MAX_DISPLAY_RECORDS} max)" +
+        f" • Last reading @ {df['time_str'].iloc[-1]}"
+    )
 
     def build_chart(field, label, threshold, color):
         fig = go.Figure()
-        
-        # Add main line trace
+        # Main line trace using HH:MM:SS strings
         fig.add_trace(go.Scatter(
-            x=df["datetime"],
+            x=df["time_str"],
             y=df[field],
             mode='lines',
             line=dict(color=color),
             name=label,
             hovertemplate='Time: %{x}<br>' + f'{label}: %{{y}}<extra></extra>'
         ))
-        
-        # Add threshold line
+        # Threshold line
         fig.add_hline(
             y=threshold,
             line=dict(color=color, dash='dash'),
@@ -67,30 +69,27 @@ else:
             annotation_position="top right",
             annotation_font=dict(color=color, size=12)
         )
-        
-        # Update layout
+        # Layout updates
         fig.update_layout(
             title=label,
-            xaxis_title='Time',
+            xaxis_title='Elapsed Time (HH:MM:SS)',
             yaxis_title=label,
             height=300,
             margin=dict(l=20, r=20, t=40, b=20),
             hovermode='x unified'
         )
-        
         return fig
 
-    # Build and render charts
+    # Render charts in columns
     temp_chart = build_chart('temp', 'Temperature (°C)', TEMP_THRESHOLD, 'red')
     hum_chart  = build_chart('hum',  'Humidity (%)', HUM_THRESHOLD, 'blue')
     ldr_chart  = build_chart('ldr',  'Light (%)', LDR_THRESHOLD, 'green')
-
     cols = st.columns(3)
     cols[0].plotly_chart(temp_chart, use_container_width=True)
     cols[1].plotly_chart(hum_chart,  use_container_width=True)
     cols[2].plotly_chart(ldr_chart,  use_container_width=True)
 
-    # Alerts Section (only checks latest reading)
+    # Alerts Section
     st.markdown("---")
     st.subheader("⚠️ Alerts")
     latest = df.iloc[-1]
